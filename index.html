@@ -145,8 +145,8 @@
   // ---------- rounds ----------
   function newRings(){ // 빨/초/파 무작위지만 반드시 서로 다른 3색(순열)
     const a=[0,1,2]; for(let i=2;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];} G.rings=a; G.ringGone=[false,false,false]; }
-  function removeRing(c){ // 들어간 구슬 색과 같은 색의 테두리를 하나 제거
-    for(let i=0;i<3;i++){ if(!G.ringGone[i] && G.rings[i]===c){ G.ringGone[i]=true; G.fx.push({type:"ring",r:ringR[i],col:COL[c].hex,t:0}); return; } } }
+  function removeRing(i){ // i번째 테두리(0=바깥,1=중간,2=안쪽) 제거 — 그 자리에 정답 구슬이 들어갈 때만 호출
+    if(i>=0 && i<3 && !G.ringGone[i]){ G.ringGone[i]=true; G.fx.push({type:"ring",r:ringR[i],col:COL[G.rings[i]].hex,t:0}); } }
   // 이 레인(1~2열)이 3·5·7회 폭발 스케줄 안에서 테두리 색으로 맞춰질 수 있는지 검사.
   // 폭발마다 한 열만 칠하거나(또는 비조준) 가능 → (열수+1)^7 조합 완전탐색.
   function laneSolvable(cols){
@@ -209,9 +209,8 @@
   function commitOrb(col,o){
     o.committed=true;
     const want=G.rings[o.tr], px=cx+Math.cos(col.ang)*bossR*0.4, py=cy+Math.sin(col.ang)*bossR*0.4;
-    if(o.cidx===want){ sOk(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:true}); removeRing(o.cidx); }
-    else { sBad(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:false}); G.wrong++;
-      if(G.wrong>=2) gameOver(); else removeRing(o.cidx); }
+    if(o.cidx===want){ sOk(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:true}); removeRing(o.tr); } // 정답일 때만 그 자리 테두리 제거
+    else { sBad(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:false}); G.wrong++; if(G.wrong>=2) gameOver(); }
   }
 
   // ---------- loop ----------
