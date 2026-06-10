@@ -106,7 +106,7 @@
 
   const G={
     clock:4, sound:true, running:false, wrong:0,
-    rings:[0,1,2], cols:[], beam:null, fx:[],
+    rings:[0,1,2], ringGone:[false,false,false], cols:[], beam:null, fx:[],
     player:{x:0,y:0}, laneSeq:0, respawn:0, last:0, raf:0,
   };
   window.G=G;
@@ -144,7 +144,9 @@
 
   // ---------- rounds ----------
   function newRings(){ // 빨/초/파 무작위지만 반드시 서로 다른 3색(순열)
-    const a=[0,1,2]; for(let i=2;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];} G.rings=a; }
+    const a=[0,1,2]; for(let i=2;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];} G.rings=a; G.ringGone=[false,false,false]; }
+  function removeRing(c){ // 들어간 구슬 색과 같은 색의 테두리를 하나 제거
+    for(let i=0;i<3;i++){ if(!G.ringGone[i] && G.rings[i]===c){ G.ringGone[i]=true; G.fx.push({type:"ring",r:ringR[i],col:COL[c].hex,t:0}); return; } } }
   // 이 레인(1~2열)이 3·5·7회 폭발 스케줄 안에서 테두리 색으로 맞춰질 수 있는지 검사.
   // 폭발마다 한 열만 칠하거나(또는 비조준) 가능 → (열수+1)^7 조합 완전탐색.
   function laneSolvable(cols){
@@ -207,8 +209,9 @@
   function commitOrb(col,o){
     o.committed=true;
     const want=G.rings[o.tr], px=cx+Math.cos(col.ang)*bossR*0.4, py=cy+Math.sin(col.ang)*bossR*0.4;
-    if(o.cidx===want){ sOk(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:true}); }
-    else { sBad(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:false}); G.wrong++; if(G.wrong>=2) gameOver(); }
+    if(o.cidx===want){ sOk(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:true}); removeRing(o.cidx); }
+    else { sBad(); G.fx.push({type:"hit",x:px,y:py,t:0,ok:false}); G.wrong++;
+      if(G.wrong>=2) gameOver(); else removeRing(o.cidx); }
   }
 
   // ---------- loop ----------
@@ -291,10 +294,14 @@
       ctx.fillStyle=`rgba(255,210,120,${(1-p)*0.55})`;ctx.fillRect(0,-w/2*(1+p),len,w*(1+p));ctx.restore();
     }
 
-    // boss rings + core
-    for(let i=0;i<3;i++){const col=COL[G.rings[i]];
+    // boss rings (사라진 것은 제외) + core
+    for(let i=0;i<3;i++){ if(G.ringGone[i])continue; const col=COL[G.rings[i]];
       ctx.beginPath();ctx.arc(cx,cy,ringR[i],0,TAU);ctx.strokeStyle=col.hex;ctx.lineWidth=S*0.013;
       ctx.shadowColor=col.hex;ctx.shadowBlur=10;ctx.stroke();ctx.shadowBlur=0;}
+    // ring vanish fx
+    for(const f of G.fx){ if(f.type!=="ring")continue; const p=clamp(f.t/0.6,0,1);
+      ctx.save();ctx.globalAlpha=1-p;ctx.beginPath();ctx.arc(cx,cy,f.r*(1+p*0.14),0,TAU);
+      ctx.strokeStyle=f.col;ctx.lineWidth=S*0.013*(1-p)+1;ctx.shadowColor=f.col;ctx.shadowBlur=16*(1-p);ctx.stroke();ctx.restore();}
     ctx.save();
     ctx.beginPath();ctx.arc(cx,cy,bossR,0,TAU);ctx.clip();
     if(bossReady){ ctx.drawImage(bossImg, cx-bossR, cy-bossR, bossR*2, bossR*2); }
@@ -341,10 +348,12 @@
     ctx.textAlign="left";ctx.textBaseline="middle";
     ctx.fillStyle="rgba(180,190,210,0.8)";ctx.font=`bold ${Math.round(S*0.02)}px sans-serif`;
     ctx.fillText("테두리(바깥→안쪽)",lx,ly);
-    for(let i=0;i<3;i++){ const col=COL[G.rings[i]], yy=ly+gap*(i+1);
-      ctx.beginPath();ctx.arc(lx+sw/2,yy,sw/2,0,TAU);ctx.fillStyle=col.hex;ctx.shadowColor=col.hex;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;
+    for(let i=0;i<3;i++){ const col=COL[G.rings[i]], yy=ly+gap*(i+1), gone=G.ringGone[i];
+      ctx.save(); ctx.globalAlpha=gone?0.32:1;
+      ctx.beginPath();ctx.arc(lx+sw/2,yy,sw/2,0,TAU);ctx.fillStyle=col.hex;ctx.shadowColor=col.hex;ctx.shadowBlur=gone?0:8;ctx.fill();ctx.shadowBlur=0;
       ctx.fillStyle="rgba(220,225,235,0.85)";ctx.font=`${Math.round(S*0.02)}px sans-serif`;
-      ctx.fillText(`${i+1}번 구슬 = ${col.name}`,lx+sw+S*0.012,yy);
+      ctx.fillText(`${i+1}번 구슬 = ${col.name}`+(gone?"  ✓":""),lx+sw+S*0.012,yy);
+      ctx.restore();
     }
 
     // player + aim line
